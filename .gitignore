@@ -1,0 +1,18 @@
+## Build results
+bin/
+obj/
+publish/
+artifacts/
+
+## Tests / CI
+TestResults/
+*.trx
+
+## Visual Studio / Rider
+.vs/
+.idea/
+*.user
+*.suo
+
+## Misc
+*.log

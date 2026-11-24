@@ -1,0 +1,80 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Test, publish and release
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+          cache: true
+          cache-dependency-path: |
+            **/*.csproj
+            **/*.slnx
+
+      - name: Restore
+        run: dotnet restore SpotOnFly.slnx
+
+      - name: Build
+        run: dotnet build SpotOnFly.slnx -c Release --no-restore
+
+      - name: Test
+        run: dotnet test SpotOnFly.slnx -c Release --no-build --no-restore --logger "trx;LogFileName=test-results.trx"
+
+      - name: Publish self-contained executable
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}".TrimStart('v')
+          dotnet publish SpotOnFly.csproj `
+            -c Release `
+            -r win-x64 `
+            --self-contained true `
+            -p:PublishSingleFile=true `
+            -p:IncludeNativeLibrariesForSelfExtract=true `
+            -p:DebugType=None `
+            -p:DebugSymbols=false `
+            -p:Version=$version `
+            -o artifacts/publish
+
+      - name: Prepare release archive
+        shell: pwsh
+        run: |
+          Copy-Item LICENSE artifacts/publish/LICENSE
+          Copy-Item THIRD-PARTY-NOTICES.txt artifacts/publish/THIRD-PARTY-NOTICES.txt
+          Compress-Archive -Path artifacts/publish/* -DestinationPath "artifacts/SpotOnFly-${{ github.ref_name }}-win-x64.zip"
+          Get-ChildItem artifacts/publish | Select-Object Name, Length
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: SpotOnFly-${{ github.ref_name }}-win-x64
+          path: artifacts/SpotOnFly-${{ github.ref_name }}-win-x64.zip
+
+      - name: Create GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ github.ref_name }}" `
+            "artifacts/SpotOnFly-${{ github.ref_name }}-win-x64.zip" `
+            --title "SpotOnFly ${{ github.ref_name }}" `
+            --generate-notes

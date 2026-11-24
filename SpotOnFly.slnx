@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="SpotOnFly.csproj" />
+  <Project Path="Tests/SpotOnFly.Tests.csproj" />
+</Solution>
